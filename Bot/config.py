@@ -1,2 +1,2 @@
-BOT_TOKEN = ("8642910718:AAEY7b5WZT31qjIiYeecj6Gy5I3CoReUYSM")
+BOT_TOKEN = ("secretxdd")
 JSON_PATH = "data.json"

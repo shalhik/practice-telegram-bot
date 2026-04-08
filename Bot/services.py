@@ -9,3 +9,6 @@ def filter_events():
 
 def send_notification(bot, chat_id, event):
     pass
+
+def change_to_list():
+    pass

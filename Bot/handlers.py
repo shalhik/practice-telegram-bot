@@ -4,7 +4,7 @@ from aiogram.types import Message
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from services import change_to_list
+from services import *
 
 router = Router()
 
@@ -20,15 +20,28 @@ async def start(msg: Message):
 @router.message(Command("connect"))
 async def connect(msg: Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Space',)],
-        [InlineKeyboardButton(text='Folder',)],        
-        [InlineKeyboardButton(text='List', callback_data='hi')]
+        [InlineKeyboardButton(text='Space', callback_data='spacing')],
+        [InlineKeyboardButton(text='Folder', callback_data='folding')],        
+        [InlineKeyboardButton(text='List', callback_data='listing')]
     ])
-    await msg.answer("Бот watch для событий")
+    await msg.answer("Бот /watch для событий")
+
+
+@router.callback_query(F.data == "spacing")
+async def process_hi(callback: CallbackQuery):
+    await change_to_list(callback)
+
+@router.callback_query(F.data == "folding")
+async def processing(callback: CallbackQuery):
+    await change_to_folder(callback)
+
+@router.callback_query(F.data == "listing")
+async def processsz(callback: CallbackQuery):
+    await change_to_list(callback)
+
 
 @router.message(Command("watch"))
 async def watch(msg: Message):
-
     await msg.answer("Бот watch для событий")
 
 @router.message(Command("unwatch"))
@@ -44,8 +57,3 @@ async def cmd_task(msg: Message):
     parts = msg.text.split()
     task_id = parts[1] if len(parts) > 1 else "no id"
     await msg.answer(f"task {task_id}")
-
-@router.callback_query(F.data == "hi")
-async def process_hi(callback: CallbackQuery):
-    await callback.message.answer("Кнопка 'ahah' нажата!")
-    await callback.answer("Готово!") 

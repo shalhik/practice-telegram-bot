@@ -1,0 +1,50 @@
+[
+  {
+    "event": "taskUpdated",
+    "task": {
+      "id": 123456,
+      "name": "Фикс критичной баги в API",
+      "status": {"status": "in progress"},
+      "priority": "urgent",
+      "assignees": [{"id": "user1", "name": "John Doe"}],
+      "due_date": "2026-04-10",
+      "space": {"id": "space_alpha", "name": "Команда Гота"},
+      "folder": {"id": "folder_beta", "name": "Sprint 15"},
+      "list": {"id": "list_gamma", "name": "Backend"}
+    },
+    "important": true,
+    "timestamp": "2026-04-08T14:30:00Z"
+  },
+  {
+    "event": "taskCreated",
+    "task": {
+      "id": 789012,
+      "name": "Обновить документацию",
+      "status": {"status": "to do"},
+      "priority": "high",
+      "assignees": [{"id": "user2", "name": "Jane Smith"}],
+      "due_date": null,
+      "space": {"id": "space_alpha", "name": "Команда Гота"},
+      "folder": {"id": "folder_delta", "name": "Docs"},
+      "list": {"id": "list_epsilon", "name": "Руководства"}
+    },
+    "important": false,
+    "timestamp": "2026-04-08T15:15:00Z"
+  },
+  {
+    "event": "taskCompleted",
+    "task": {
+      "id": 345678,
+      "name": "Деплой на staging",
+      "status": {"status": "completed"},
+      "priority": "urgent",
+      "assignees": [{"id": "user1", "name": "John Doe"}],
+      "due_date": "2026-04-08",
+      "space": {"id": "space_beta", "name": "Marketing"},
+      "folder": null,
+      "list": {"id": "list_zeta", "name": "Release"}
+    },
+    "important": true,
+    "timestamp": "2026-04-08T16:00:00Z"
+  }
+]

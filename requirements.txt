@@ -6,3 +6,4 @@ sqlalchemy
 alembic
 asyncpg
 pydantic
+aiogram

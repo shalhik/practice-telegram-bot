@@ -14,6 +14,7 @@ from config import CLICKUP_WEBHOOK_SECRET
 from database import async_session, init_db
 from filters import is_important
 from models import SentEvent
+from notifications import notify_subscribers
 from schemas import ClickUpWebhook
 
 logging.basicConfig(
@@ -124,8 +125,7 @@ async def process_webhook_logic(data: dict) -> None:
             task_id=task_id,
             event_type=event_type,
         )
-        # Hook for bot integration will be added by your teammate.
-        # await bot_services.send_notification(task)
+        await notify_subscribers(task, event_id)
     else:
         task_name = str(task.get("name") or task_id)
         log_event(

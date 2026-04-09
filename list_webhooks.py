@@ -1,22 +1,34 @@
 import httpx
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from config import CLICKUP_API_KEY, CLICKUP_TEAM_ID
 
-API_KEY = os.getenv("CLICKUP_API_KEY")
-TEAM_ID = "90182602228" 
-HEADERS = {"Authorization": API_KEY}
+HEADERS = {"Authorization": CLICKUP_API_KEY}
 
-def list_webhooks():
-    url = f"https://api.clickup.com/api/v2/team/{TEAM_ID}/webhook"
-    with httpx.Client() as client:
-        response = client.get(url, headers=HEADERS)
-        webhooks = response.json().get('webhooks', [])
+
+def list_webhooks() -> None:
+    url = f"https://api.clickup.com/api/v2/team/{CLICKUP_TEAM_ID}/webhook"
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            response = client.get(url, headers=HEADERS)
+
+        if response.status_code != 200:
+            print(f"ERROR: unable to list webhooks status={response.status_code}")
+            print(response.text)
+            return
+
+        webhooks = response.json().get("webhooks", [])
         if not webhooks:
-            print("❌ У тебя нет зарегистрированных вебхуков!")
-        for wh in webhooks:
-            print(f"ID: {wh['id']} | Endpoint: {wh['endpoint']} | Health: {wh['health']['status']}")
+            print("No webhooks are registered")
+            return
+
+        for webhook in webhooks:
+            health = webhook.get("health", {}).get("status", "unknown")
+            print(f"ID: {webhook.get('id')} | Endpoint: {webhook.get('endpoint')} | Health: {health}")
+
+    except Exception as exc:
+        print(f"ERROR: list webhooks request failed: {exc}")
+
 
 if __name__ == "__main__":
     list_webhooks()

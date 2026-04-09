@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("CLICKUP_API_KEY")
-TEAM_ID = "90182602228" 
+TEAM_ID = "90182601546" 
 HEADERS = {"Authorization": API_KEY}
 
 def list_webhooks():
@@ -14,7 +14,7 @@ def list_webhooks():
         response = client.get(url, headers=HEADERS)
         webhooks = response.json().get('webhooks', [])
         if not webhooks:
-            print("❌ У тебя нет зарегистрированных вебхуков!")
+            print("У тебя нет зарегистрированных вебхуков!")
         for wh in webhooks:
             print(f"ID: {wh['id']} | Endpoint: {wh['endpoint']} | Health: {wh['health']['status']}")
 

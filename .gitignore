@@ -1,4 +1,17 @@
+# Зависимости
+venv/
 .env
-.venv
-__pycache__
+__pycache__/
 *.pyc
+
+# Логи и базы
+*.log
+db.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# OS файлы
+.DS_Store
+Thumbs.db

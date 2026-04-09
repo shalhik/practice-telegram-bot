@@ -9,7 +9,7 @@ API_KEY = os.getenv("CLICKUP_API_KEY")
 # Твой адрес из ngrok (ОБЯЗАТЕЛЬНО добавь /webhook/clickup в конце)
 WEBHOOK_URL = "https://centralistic-unstrewn-lianne.ngrok-free.dev/webhook/clickup"
 # Твой ID команды (из URL браузера)
-TEAM_ID = "90182602228" 
+TEAM_ID = "90182601546" 
 
 HEADERS = {"Authorization": API_KEY}
 
@@ -34,10 +34,10 @@ def register():
         
         if response.status_code == 200:
             data = response.json()
-            print("✅ Успех! Вебхук зарегистрирован.")
+            print("Успех! Вебхук зарегистрирован.")
             print(f"ID вебхука: {data['webhook']['id']}")
         else:
-            print(f"❌ Ошибка: {response.status_code}")
+            print(f"Ошибка: {response.status_code}")
             print(response.text)
 
 if __name__ == "__main__":

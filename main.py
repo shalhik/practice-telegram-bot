@@ -30,32 +30,57 @@ async def process_webhook_logic(task_id: str, event_id: str | None):
     2. Проверить на важность
     3. Отправить уведомление через Telegram если подходит
     """
+    print(f"⚙️ Начало обработки webhook: task_id={task_id}, event_id={event_id}")
+    
     task = await get_task_details(task_id)
     if not task:
-        print(f"Ошибка: Не удалось найти задачу {task_id}")
+        print(f"❌ Ошибка: Не удалось найти задачу {task_id}")
         return
 
+    task_name = task.get('name', 'Без названия')
+    print(f"📌 Получена задача: {task_name}")
+
     if is_important(task):
-        print(f"🔥 ВАЖНО: Задача '{task.get('name')}' подходит под критерии.")
+        print(f"🔥 ВАЖНО: Задача '{task_name}' проходит под фильтры - отправляем уведомления")
         await notify_subscribers(task, event_id)
     else:
-        print(f"☁️ Пропускаем: Задача '{task.get('name')}' не важна.")
+        print(f"☁️ Пропускаем: Задача '{task_name}' не важна")
 
 @app.post("/webhook/clickup")
 async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     body = await request.body()
     signature = request.headers.get("X-ClickUp-Signature") or request.headers.get("X-Signature")
+    
+    print(f"📥 Получен webhook запрос, размер: {len(body)} байт")
+    
     if not validate_clickup_signature(body, signature):
+        print("❌ Ошибка валидации подписи webhook")
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
-    data = json.loads(body)
-    task_id = data.get("task_id") or data.get("task", {}).get("id")
-    event = data.get("event")
-    event_id = data.get("event_id") or data.get("id") or (f"{event}:{task_id}" if event and task_id else task_id)
+    try:
+        data = json.loads(body)
+        print(f"📋 Payload webhook: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}...")
+    except json.JSONDecodeError as e:
+        print(f"❌ Ошибка парсинга JSON: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    print(f"Получено событие {event} для задачи {task_id}")
+    # Попытка получить task_id из разных мест в структуре
+    task_id = data.get("task", {}).get("id") or data.get("task_id")
+    event = data.get("event")
+    event_id = data.get("event_id") or data.get("id")
+    
+    # Если event_id не найден, создаём его на основе event и task_id
+    if not event_id and event and task_id:
+        event_id = f"{event}:{task_id}"
+
+    print(f"🔍 Извлечено: event={event}, task_id={task_id}, event_id={event_id}")
+
+    if not task_id:
+        print("⚠️ task_id не найден в payload")
+        return {"status": "ok", "warning": "task_id not found"}
 
     if task_id:
+        print(f"✅ Добавлена задача {task_id} в очередь обработки")
         background_tasks.add_task(process_webhook_logic, task_id, event_id)
 
     return {"status": "ok"}

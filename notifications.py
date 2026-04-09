@@ -36,7 +36,9 @@ async def notify_subscribers(task: dict, event_id: str | None = None):
 
     async with async_session() as session:
         if event_id:
-            existing = await session.get(SentEvent, event_id)
+            stmt = select(SentEvent).where(SentEvent.event_id == event_id)
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
             if existing:
                 print(f"Событие {event_id} уже было отправлено ранее.")
                 return
@@ -61,10 +63,16 @@ async def notify_subscribers(task: dict, event_id: str | None = None):
             for subscriber in subscribers:
                 try:
                     await bot.send_message(subscriber.tg_chat_id, message_text)
-                    print(f"Уведомление отправлено в Telegram: chat_id={subscriber.tg_chat_id}")
+                    print(f"✅ Уведомление отправлено в Telegram: chat_id={subscriber.tg_chat_id}")
                 except Exception as exc:
-                    print(f"Ошибка отправки уведомления chat_id={subscriber.tg_chat_id}: {exc}")
+                    print(f"❌ Ошибка отправки уведомления chat_id={subscriber.tg_chat_id}: {exc}")
 
         if event_id:
-            session.add(SentEvent(event_id=event_id))
-            await session.commit()
+            sent_event = SentEvent(event_id=event_id)
+            session.add(sent_event)
+            try:
+                await session.commit()
+                print(f"✅ Событие {event_id} записано в БД")
+            except Exception as e:
+                print(f"❌ Ошибка при записи события {event_id} в БД: {e}")
+                await session.rollback()

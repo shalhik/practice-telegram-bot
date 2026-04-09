@@ -1,6 +1,9 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 from filters import is_important
 from clickup_client import get_task_details
+from database import init_db, async_session
+from models import Subscription, SentEvent
+from sqlalchemy import select
 
 app = FastAPI(title="ClickUp to Telegram Integration")
 
@@ -39,3 +42,8 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
         background_tasks.add_task(process_webhook_logic, task_id)
 
     return {"status": "ok"}
+
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
+    print("🚀 База данных готова к работе")

@@ -138,6 +138,12 @@ async def get_webhook_config_from_db() -> WebhookConfig | None:
         result = await session.execute(select(WebhookConfig))
         return result.scalar_one_or_none()
 
+async def get_webhook_secret_from_db() -> str | None:
+    cfg = await get_webhook_config_from_db()
+    if not cfg:
+        return None
+    return cfg.secret
+
 
 async def setup_team_webhook() -> dict:
     if not WEBHOOK_URL:

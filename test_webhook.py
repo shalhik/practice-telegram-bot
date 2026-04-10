@@ -20,7 +20,7 @@ def sign_body(body: bytes) -> str:
 async def send(client: httpx.AsyncClient, payload: dict, signature: str) -> httpx.Response:
     body = json.dumps(payload, separators=(",", ":")).encode()
     headers = {
-        "X-ClickUp-Signature": signature,
+        "X-Signature": signature,
         "Content-Type": "application/json",
     }
     return await client.post(URL, content=body, headers=headers)

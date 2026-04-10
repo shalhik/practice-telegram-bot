@@ -7,3 +7,4 @@ alembic
 asyncpg
 pydantic
 aiogram
+psycopg2-binary

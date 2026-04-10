@@ -1,14 +1,15 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 def get_env(name: str, required: bool = True) -> str:
-    value = os.getenv(name)
+    raw = os.getenv(name)
+    value = raw.strip() if raw else ""
     if required and not value:
         # Fail-fast: падаем сразу, если нет важной настройки
         raise RuntimeError(f"КРИТИЧЕСКАЯ ОШИБКА: Переменная окружения '{name}' не задана!")
-    return value or ""
+    return value
 
 # Конфигурация ClickUp
 CLICKUP_API_KEY = get_env("CLICKUP_API_KEY", required=False)

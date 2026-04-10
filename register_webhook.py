@@ -6,13 +6,21 @@ from clickup_client import create_webhook
 
 logger = logging.getLogger("webhook_register")
 
-async def register(override_api_key: str = None, override_team_id: str = None) -> dict:
-    api_key = override_api_key or CLICKUP_API_KEY
-    team_id = override_team_id or CLICKUP_TEAM_ID
-    
+async def register() -> dict:
+    api_key = CLICKUP_API_KEY
+    team_id = CLICKUP_TEAM_ID
+
     if not WEBHOOK_URL:
         logger.error("ERROR: WEBHOOK_URL is not set")
-        return {"error": "WEBHOOK_URL не задан "}
+        return {"error": "WEBHOOK_URL не задан"}
+
+    if not api_key:
+        logger.error("ERROR: CLICKUP_API_KEY is not set")
+        return {"error": "CLICKUP_API_KEY не задан"}
+
+    if not team_id:
+        logger.error("ERROR: CLICKUP_TEAM_ID is not set")
+        return {"error": "CLICKUP_TEAM_ID не задан"}
 
     try:
         data = await create_webhook(team_id, WEBHOOK_URL)
@@ -26,8 +34,6 @@ async def register(override_api_key: str = None, override_team_id: str = None) -
                 webhook_id=webhook_data["id"],
                 secret=webhook_data["secret"],
                 url=WEBHOOK_URL,
-                api_key=api_key,
-                team_id=team_id
             )
         return data
 

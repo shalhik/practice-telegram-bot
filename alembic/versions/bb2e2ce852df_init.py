@@ -20,6 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
     # 1) Создаём таблицу webhook_config
     op.create_table(
         'webhook_config',
@@ -31,22 +34,28 @@ def upgrade() -> None:
         sa.Column('team_id', sa.String(), nullable=True),
         sa.PrimaryKeyConstraint('id')
     )
-    op.drop_table('telegram_chats')
-    op.add_column(
-        'subscriptions',
-        sa.Column(
+
+    if inspector.has_table('telegram_chats'):
+        op.drop_table('telegram_chats')
+
+    if inspector.has_table('subscriptions'):
+        subscription_columns = {col['name'] for col in inspector.get_columns('subscriptions')}
+        if 'is_active' not in subscription_columns:
+            op.add_column(
+                'subscriptions',
+                sa.Column(
+                    'is_active',
+                    sa.Boolean(),
+                    nullable=True,
+                    server_default=sa.text('false'),
+                )
+            )
+        op.alter_column(
+            'subscriptions',
             'is_active',
-            sa.Boolean(),
-            nullable=True,
-            server_default=sa.text('false'),
+            nullable=False,
+            server_default=None,
         )
-    )
-    op.alter_column(
-        'subscriptions',
-        'is_active',
-        nullable=False,
-        server_default=None,
-    )
 
 def downgrade() -> None:
     """Downgrade schema."""

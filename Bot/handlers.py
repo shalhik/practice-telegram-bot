@@ -1,8 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 
 from .services import (
     subscribe,
@@ -15,16 +13,10 @@ from .services import (
     get_task_summary,
 )
 from filters import is_important
-from register_webhook import register
 from clickup_client import get_task_details,  get_list_tasks
 
 
 router = Router()
-
-
-class SetupStates(StatesGroup):
-    waiting_for_api_key = State()
-    waiting_for_team_id = State()
 
 
 @router.message(Command("start"))
@@ -32,10 +24,13 @@ async def start(msg: Message):
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Мои подписки", callback_data="subscriptions")],
-            [InlineKeyboardButton(text="Настроить Webhook", callback_data="setup_webhook")],
         ]
     )
-    await msg.answer("Бот для уведомлений ClickUp. Выберите действие:", reply_markup=markup)
+    await msg.answer(
+        "Бот для уведомлений ClickUp. Интеграция уже настроена на сервере. "
+        "Выберите действие:",
+        reply_markup=markup,
+    )
 
 
 @router.callback_query(F.data.startswith("space:"))
@@ -116,8 +111,8 @@ async def connect_command(msg: Message):
         await msg.answer(
             "Не удалось получить пространства ClickUp.\n\n"
             "Проверьте:\n"
-            "1. API ключ ClickUp установлен (через /setup_webhook)\n"
-            "2. TEAM_ID корректный\n"
+            "1. Интеграция ClickUp настроена в серверной конфигурации\n"
+            "2. У сервисного аккаунта есть доступ к нужным Space/List\n"
             "\n Посмотрите логи бота для деталей ошибки."
         )
         return
@@ -229,50 +224,3 @@ async def cmd_task(msg: Message):
     task_id = parts[1]
     summary = await get_task_summary(task_id)
     await msg.answer(summary)
-
-
-@router.message(Command("setup_webhook"))
-@router.callback_query(F.data == "setup_webhook")
-async def handle_setup_webhook(event: Message | CallbackQuery, state: FSMContext):
-    target = event if isinstance(event, Message) else event.message
-    await target.answer("Шаг 1/2: Введите ваш ClickUp API Key (Personal Token):")
-    await state.set_state(SetupStates.waiting_for_api_key)
-    if isinstance(event, CallbackQuery):
-        await event.answer()
-
-
-@router.message(SetupStates.waiting_for_api_key)
-async def process_api_key(msg: Message, state: FSMContext):
-    await state.update_data(api_key=msg.text.strip())
-    await msg.answer("Шаг 2/2: Введите ваш ClickUp Team ID (можно найти в URL вашего Workspace):")
-    await state.set_state(SetupStates.waiting_for_team_id)
-
-
-@router.message(SetupStates.waiting_for_team_id)
-async def process_team_id(msg: Message, state: FSMContext):
-    data = await state.get_data()
-    api_key = data["api_key"]
-    team_id = msg.text.strip()
-
-    await msg.answer("Проверка данных и регистрация вебхука...")
-
-    res = await register(override_api_key=api_key, override_team_id=team_id)
-
-    error = res.get("error") if isinstance(res, dict) else None
-    if error and "Webhook configuration already exists" not in str(error):
-        await msg.answer(
-            f"Ошибка регистрации: {error}\n\n"
-            "Попробуйте снова: /setup_webhook"
-        )
-    else:
-        webhook_id = res.get("webhook", {}).get("id") if isinstance(res, dict) else None
-        text = (
-            "Интеграция настроена.\n\n"
-            "ClickUp сообщает, что вебхук уже существует для этого URL "
-            "или был успешно создан.\n\n"
-            f"Webhook ID: `{webhook_id or 'неизвестен'}`\n"
-            "Теперь вы можете использовать /connect для подписки на списки."
-        )
-        await msg.answer(text, parse_mode="Markdown")
-
-    await state.clear()

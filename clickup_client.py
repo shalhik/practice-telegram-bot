@@ -10,23 +10,10 @@ BASE_URL = "https://api.clickup.com/api/v2"
 
 
 async def get_headers() -> dict:
-    from Bot.services import get_webhook_config_from_db
-
-    cfg = await get_webhook_config_from_db()
-    api_key = cfg.api_key if cfg and cfg.api_key else CLICKUP_API_KEY
-
-    if not api_key:
-        logger.error("get_headers: API ключ не найден ни в БД, ни в .env")
+    if not CLICKUP_API_KEY:
+        logger.error("get_headers: CLICKUP_API_KEY is not set in environment")
         return {}
-
-    logger.info(
-        "Using ClickUp API key: source=%s, prefix=%s..., len=%s",
-        "db" if cfg and cfg.api_key else "env",
-        api_key[:6],
-        len(api_key),
-    )
-
-    return {"Authorization": api_key}
+    return {"Authorization": CLICKUP_API_KEY}
 
 async def get_spaces(team_id: str) -> list[dict]:
     headers = await get_headers()

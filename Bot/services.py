@@ -1,9 +1,14 @@
+import asyncio
+from typing import Optional
+
 from aiogram import Bot, types
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 from .config import BOT_TOKEN
 from database import async_session
 from models import Subscription, WebhookConfig
 
 from sqlalchemy import select, delete, update
+from sqlalchemy.exc import IntegrityError
 from clickup_client import (
     get_spaces,
     get_space_lists,
@@ -39,8 +44,12 @@ async def subscribe(chat_id: int, list_id: str) -> str:
             is_active=True,
         )
         session.add(new_sub)
-        await session.commit()
-        return "Подписка успешно оформлена!"
+        try:
+            await session.commit()
+            return "Подписка успешно оформлена!"
+        except IntegrityError:
+            await session.rollback()
+            return "Вы уже подписаны на этот список."
 
 
 async def unsubscribe(chat_id: int, list_id: str) -> str:
@@ -75,7 +84,7 @@ async def get_user_subscriptions(chat_id: int) -> list[str]:
         return [row for row in result.scalars().all()]
 
 
-async def send_notification(chat_id: int, text: str, task_url: str = None):
+async def send_notification(chat_id: int, text: str, task_url: Optional[str] = None):
     bot = Bot(token=BOT_TOKEN)
     try:
         markup = None
@@ -90,7 +99,19 @@ async def send_notification(chat_id: int, text: str, task_url: str = None):
                     ]
                 ]
             )
-        await bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        attempts = 3
+        for attempt in range(1, attempts + 1):
+            try:
+                await bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+                return
+            except TelegramRetryAfter as exc:
+                if attempt == attempts:
+                    raise
+                await asyncio.sleep(float(exc.retry_after))
+            except TelegramNetworkError:
+                if attempt == attempts:
+                    raise
+                await asyncio.sleep(min(2 ** (attempt - 1), 8))
     finally:
         await bot.session.close()
 
@@ -117,8 +138,6 @@ async def save_webhook_config(
     webhook_id: str,
     secret: str,
     url: str,
-    api_key: str = None,
-    team_id: str = None,
 ):
     async with async_session() as session:
         await session.execute(delete(WebhookConfig))
@@ -126,8 +145,6 @@ async def save_webhook_config(
             webhook_id=webhook_id,
             secret=secret,
             url=url,
-            api_key=api_key,
-            team_id=team_id,
         )
         session.add(new_cfg)
         await session.commit()

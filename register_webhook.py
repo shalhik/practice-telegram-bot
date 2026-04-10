@@ -11,8 +11,8 @@ async def register(override_api_key: str = None, override_team_id: str = None) -
     team_id = override_team_id or CLICKUP_TEAM_ID
     
     if not WEBHOOK_URL:
-        logger.error("ERROR: WEBHOOK_URL is not set in environment")
-        return {"error": "WEBHOOK_URL не задан в .env"}
+        logger.error("ERROR: WEBHOOK_URL is not set")
+        return {"error": "WEBHOOK_URL не задан "}
 
     try:
         data = await create_webhook(team_id, WEBHOOK_URL)

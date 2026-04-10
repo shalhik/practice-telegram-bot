@@ -3,6 +3,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+
 from .services import (
     subscribe,
     unsubscribe,
@@ -12,11 +13,11 @@ from .services import (
     get_all_clickup_lists,
     set_chat_enabled,
     get_task_summary,
-    get_list_tasks
 )
 from filters import is_important
 from register_webhook import register
-from clickup_client import get_task_details
+from clickup_client import get_task_details,  get_list_tasks
+
 
 router = Router()
 

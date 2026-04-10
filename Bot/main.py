@@ -7,8 +7,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from aiogram import Bot, Dispatcher
-from config import BOT_TOKEN
-from handlers import router
+from .config import BOT_TOKEN
+from .handlers import router
 
 async def main():
     bot = Bot(token=BOT_TOKEN)

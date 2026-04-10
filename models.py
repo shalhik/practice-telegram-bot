@@ -1,22 +1,43 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import BigInteger, String, DateTime
 from datetime import datetime
 
+from sqlalchemy import BigInteger, String, DateTime, Boolean
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
 class Base(DeclarativeBase):
+    """Базовый класс для всех моделей."""
     pass
 
 class Subscription(Base):
-    """Таблица подписок: кто на какой список ClickUp подписан"""
+    """Таблица подписок: кто на какой список ClickUp подписан."""
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tg_chat_id: Mapped[int] = mapped_column(BigInteger) # ID чата в телеге
-    clickup_list_id: Mapped[str] = mapped_column(String) # ID списка в ClickUp
+    tg_chat_id: Mapped[int] = mapped_column(BigInteger)        # ID чата в Telegram
+    clickup_list_id: Mapped[str] = mapped_column(String)       # ID списка в ClickUp
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Флаг уведомлений
 
 class SentEvent(Base):
-    """Таблица для защиты от дублей (Рубеж 6)"""
+    """Таблица для защиты от дублей (уникальный ID события ClickUp)."""
     __tablename__ = "sent_events"
 
-    # У каждого события ClickUp есть уникальный ID (например, 'evt_123')
     event_id: Mapped[str] = mapped_column(String, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+
+
+class WebhookConfig(Base):
+    """
+    Конфигурация вебхука ClickUp:
+    - храним ID вебхука и секрет,
+    - URL эндпоинта,
+    - а также API ключ и team_id, если пользователь их вводил через бота.
+    """
+    __tablename__ = "webhook_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    webhook_id: Mapped[str] = mapped_column(String, nullable=False)
+    secret: Mapped[str] = mapped_column(String, nullable=False)
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    api_key: Mapped[str] = mapped_column(String, nullable=True)
+    team_id: Mapped[str] = mapped_column(String, nullable=True)

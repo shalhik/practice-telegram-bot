@@ -4,18 +4,18 @@ import json
 import logging
 from datetime import datetime
 from typing import Mapping
-
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
-
-from clickup_client import get_task_details
-from config import CLICKUP_WEBHOOK_SECRET
+from sqlalchemy import select
+import Bot.services as bot_services
+from clickup_client import get_task_details, list_webhooks, delete_webhook
+from config import CLICKUP_WEBHOOK_SECRET, WEBHOOK_URL, CLICKUP_TEAM_ID
 from database import async_session, init_db
 from filters import is_important
-from models import SentEvent
-from notifications import notify_subscribers
+from models import SentEvent, Subscription, WebhookConfig
 from schemas import ClickUpWebhook
+from register_webhook import register
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,15 +43,19 @@ def log_event(
     )
 
 
-def verify_signature(headers: Mapping[str, str], body: bytes) -> None:
+async def verify_signature(headers: Mapping[str, str], body: bytes) -> None:
     signature = headers.get("X-ClickUp-Signature")
     if not signature:
         logger.warning("No signature header")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    expected = hmac.new(CLICKUP_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    # Пробуем взять секрет из БД, если там пусто — берем из конфига (fallback)
+    db_secret = await bot_services.get_webhook_secret_from_db()
+    secret_to_use = db_secret or CLICKUP_WEBHOOK_SECRET
+
+    expected = hmac.new(secret_to_use.encode(), body, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature):
-        logger.warning("Invalid signature")
+        logger.warning("Invalid signature. DB secret was used: %s", bool(db_secret))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
@@ -125,7 +129,25 @@ async def process_webhook_logic(data: dict) -> None:
             task_id=task_id,
             event_type=event_type,
         )
-        await notify_subscribers(task, event_id)
+
+
+        list_id = task.get("list", {}).get("id")
+        if list_id:
+            async with async_session() as session:
+
+                query = select(Subscription.tg_chat_id).where(
+                    Subscription.clickup_list_id == list_id,
+                    Subscription.is_active == True
+                )
+                result = await session.execute(query)
+                chat_ids = result.scalars().all()
+
+                if chat_ids:
+                    summary = bot_services.format_task_summary(task)
+                    event_desc = f"Событие: {event_type}\n\n{summary}"
+                    for chat_id in chat_ids:
+                        await bot_services.send_notification(chat_id, event_desc, task_url=task.get("url"))
+
     else:
         task_name = str(task.get("name") or task_id)
         log_event(
@@ -142,7 +164,7 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks) ->
     body = await request.body()
 
     # Security-first: authenticate sender before spending effort on validation.
-    verify_signature(request.headers, body)
+    await verify_signature(request.headers, body)
 
     try:
         payload = ClickUpWebhook.model_validate_json(body)
@@ -161,8 +183,49 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks) ->
     background_tasks.add_task(process_webhook_logic, payload.model_dump())
     return {"status": "ok"}
 
-
 @app.on_event("startup")
 async def on_startup() -> None:
     await init_db()
+
+    if not WEBHOOK_URL:
+        logger.info("WEBHOOK_URL is empty, skipping webhook check.")
+        logger.info("Service started and database initialized")
+        return
+
+    async with async_session() as session:
+        db_config = (await session.execute(select(WebhookConfig))).scalar_one_or_none()
+
+    team_id = db_config.team_id if db_config and db_config.team_id else CLICKUP_TEAM_ID
+
+    if not team_id:
+        logger.info("No team_id configured yet (neither in DB nor in .env), skipping webhook check.")
+        logger.info("Service started and database initialized")
+        return
+
+    logger.info("Checking webhook health on startup...")
+    webhooks = await list_webhooks(team_id)
+
+    active_webhook = next((w for w in webhooks if w.get("endpoint") == WEBHOOK_URL), None)
+
+    async with async_session() as session:
+        db_config = (await session.execute(select(WebhookConfig))).scalar_one_or_none()
+
+        if not active_webhook or not db_config or db_config.webhook_id != active_webhook.get("id"):
+            logger.info("Webhook missing or out of sync. Re-registering...")
+
+            if active_webhook:
+                await delete_webhook(active_webhook["id"])
+
+            res = await register(
+                override_api_key=db_config.api_key if db_config and db_config.api_key else None,
+                override_team_id=team_id,
+                )
+
+            if isinstance(res, dict) and "error" in res:
+                logger.error("Startup webhook registration failed: %s", res.get("error"))
+            else:
+                logger.info("Webhook successfully synchronized on startup")
+        else:
+            logger.info("Webhook is healthy and synchronized (ID: %s)", active_webhook["id"])
+
     logger.info("Service started and database initialized")

@@ -1,124 +1,122 @@
-from aiogram import Bot
+from aiogram import Bot, types
 from .config import BOT_TOKEN, TEAM_ID
 from database import async_session
-from models import Subscription, TelegramChat
-from filters import is_important
-from sqlalchemy import select, delete
-from clickup_client import get_spaces, get_space_lists, get_lists, get_list_tasks, get_task_details
+from models import Subscription, WebhookConfig
 
-async def send_notification(chat_id: int, text: str):
-    async with Bot(token=BOT_TOKEN) as bot:
-        await bot.send_message(chat_id=chat_id, text=text)
+from sqlalchemy import select, delete, update
+from clickup_client import get_spaces, get_space_lists, get_lists, get_list_tasks, get_task_details, create_webhook
+from config import WEBHOOK_URL
+from config import CLICKUP_TEAM_ID
+
+async def get_team_id_from_db_or_env() -> str | None:
+    async with async_session() as session:
+        result = await session.execute(select(WebhookConfig))
+        cfg = result.scalar_one_or_none()
+        if cfg and cfg.team_id:
+            return cfg.team_id
+    return CLICKUP_TEAM_ID
+
+async def subscribe(chat_id: int, list_id: str) -> str:
+    async with async_session() as session:
+        query = select(Subscription).where(
+            Subscription.tg_chat_id == chat_id, 
+            Subscription.clickup_list_id == list_id
+        )
+        result = await session.execute(query)
+        if result.scalar_one_or_none():
+            return "Вы уже подписаны на этот список."
+        
+        new_sub = Subscription(tg_chat_id=chat_id, clickup_list_id=list_id, is_active=True)
+        session.add(new_sub)
+        await session.commit()
+        return "Подписка успешно оформлена!"
+
+async def unsubscribe(chat_id: int, list_id: str) -> str:
+    async with async_session() as session:
+        await session.execute(
+            delete(Subscription).where(
+                Subscription.tg_chat_id == chat_id, 
+                Subscription.clickup_list_id == list_id
+            )
+        )
+        await session.commit()
+        return "Вы отписались от списка."
+
+async def set_chat_enabled(chat_id: int, enabled: bool):
+    async with async_session() as session:
+        await session.execute(
+            update(Subscription)
+            .where(Subscription.tg_chat_id == chat_id)
+            .values(is_active=enabled)
+        )
+        await session.commit()
+
+async def get_user_subscriptions(chat_id: int) -> list[str]:
+    async with async_session() as session:
+        result = await session.execute(
+            select(Subscription.clickup_list_id).where(Subscription.tg_chat_id == chat_id)
+        )
+        return [row for row in result.scalars().all()]
+
+async def send_notification(chat_id: int, text: str, task_url: str = None):
+    bot = Bot(token=BOT_TOKEN)
+    try:
+        markup = None
+        if task_url:
+            markup = types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="Открыть в ClickUp", url=task_url)]])
+        await bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+    finally:
+        await bot.session.close()
 
 async def get_clickup_spaces() -> list[dict]:
-    """Получает Spaces ClickUp для выбора подключения."""
     return await get_spaces(TEAM_ID)
 
 async def get_clickup_lists(space_id: str) -> list[dict]:
-    """Получает списки ClickUp внутри выбранного Space."""
     return await get_space_lists(space_id)
 
 async def get_all_clickup_lists() -> list[dict]:
-    """Получает все списки ClickUp в команде."""
     return await get_lists(TEAM_ID)
 
-async def ensure_chat(chat_id: int) -> TelegramChat:
+async def save_webhook_config(webhook_id: str, secret: str, url: str, api_key: str = None, team_id: str = None):
     async with async_session() as session:
-        stmt = select(TelegramChat).where(TelegramChat.tg_chat_id == chat_id)
-        result = await session.execute(stmt)
-        chat = result.scalar_one_or_none()
-        if not chat:
-            chat = TelegramChat(tg_chat_id=chat_id, enabled=True)
-            session.add(chat)
-            await session.commit()
-            await session.refresh(chat)
-        return chat
-
-async def set_chat_enabled(chat_id: int, enabled: bool) -> str:
-    async with async_session() as session:
-        stmt = select(TelegramChat).where(TelegramChat.tg_chat_id == chat_id)
-        result = await session.execute(stmt)
-        chat = result.scalar_one_or_none()
-        if not chat:
-            chat = TelegramChat(tg_chat_id=chat_id, enabled=enabled)
-            session.add(chat)
-        else:
-            chat.enabled = enabled
-            session.add(chat)
-        await session.commit()
-        return "ok"
-
-async def subscribe(chat_id: int, list_id: str) -> str:
-    """Подписывает пользователя на список ClickUp."""
-    await ensure_chat(chat_id)
-
-    async with async_session() as session:
-        stmt = select(Subscription).where(
-            Subscription.tg_chat_id == chat_id,
-            Subscription.clickup_list_id == list_id,
+        await session.execute(delete(WebhookConfig))
+        new_cfg = WebhookConfig(
+            webhook_id=webhook_id, 
+            secret=secret, 
+            url=url,
+            api_key=api_key,
+            team_id=team_id
         )
-        result = await session.execute(stmt)
-        existing = result.scalar_one_or_none()
-        if existing:
-            return "Вы уже подписаны на этот список."
-
-        subscription = Subscription(tg_chat_id=chat_id, clickup_list_id=list_id)
-        session.add(subscription)
+        session.add(new_cfg)
         await session.commit()
-        return "Подписка оформлена!"
 
-async def unsubscribe(chat_id: int, list_id: str) -> str:
-    """Отписывает пользователя от списка ClickUp."""
+async def get_webhook_config_from_db() -> WebhookConfig | None:
     async with async_session() as session:
-        stmt = delete(Subscription).where(
-            Subscription.tg_chat_id == chat_id,
-            Subscription.clickup_list_id == list_id,
-        )
-        result = await session.execute(stmt)
-        await session.commit()
-        if result.rowcount > 0:
-            return "Подписка отменена."
-        return "Вы не были подписаны на этот список."
+        result = await session.execute(select(WebhookConfig))
+        return result.scalar_one_or_none()
 
-async def get_user_subscriptions(chat_id: int) -> list[str]:
-    """Получает список ID списков, на которые подписан пользователь."""
-    async with async_session() as session:
-        stmt = select(Subscription.clickup_list_id).where(Subscription.tg_chat_id == chat_id)
-        result = await session.execute(stmt)
-        return [row[0] for row in result.fetchall()]
-
-async def get_important_tasks(chat_id: int) -> list[dict]:
-    """Возвращает важные задачи для всех подписок чата."""
-    list_ids = await get_user_subscriptions(chat_id)
-    if not list_ids:
-        return []
-
-    tasks: list[dict] = []
-    for list_id in list_ids:
-        raw_tasks = await get_list_tasks(list_id)
-        for task in raw_tasks:
-            if is_important(task):
-                tasks.append(task)
-    return tasks
+async def setup_team_webhook() -> dict:
+    if not WEBHOOK_URL:
+        return {"error": "В конфигурации (панель управления/env) не задан WEBHOOK_URL"}
+    return await create_webhook(TEAM_ID, WEBHOOK_URL)
 
 async def get_task_summary(task_id: str) -> str:
     task = await get_task_details(task_id)
-    if not task:
-        return f"Задача {task_id} не найдена."
+    return format_task_summary(task) if task else f"Задача {task_id} не найдена."
 
+def format_task_summary(task: dict) -> str:
     name = task.get("name", "Без названия")
+    t_id = task.get("id", "—")
     status = (task.get("status") or {}).get("status", "—")
     priority = (task.get("priority") or {}).get("priority", "—")
     url = task.get("url", "(ссылка отсутствует)")
     assignees = ", ".join([a.get("username", "?") for a in task.get("assignees", [])]) or "не назначено"
-    due_date = task.get("due_date") or "не задан"
-
+    
     return (
         f"Задача: {name}\n"
-        f"ID: {task_id}\n"
+        f"ID: {t_id}\n"
         f"Статус: {status}\n"
         f"Приоритет: {priority}\n"
-        f"Исполнитель: {assignees}\n"
-        f"Дедлайн: {due_date}\n"
+        f"Исполнители: {assignees}\n"
         f"Ссылка: {url}"
     )

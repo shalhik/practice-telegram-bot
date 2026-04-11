@@ -1,0 +1,16 @@
+[33me6fa9a0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfinal-product[m[33m, [m[1;31morigin/final-product[m[33m, [m[1;31morigin/HEAD[m[33m)[m убрал дубликацию
+[33m4b12f15[m fix: resolve undefined get_webhook_secret_from_db function
+[33m298c0ea[m коннект работает, видит важные задачи, уведомления о новых важных задачах не доходят
+[33mf413083[m working... maybe?
+[33m7647f8a[m idk what to do with webhooks but bot works!
+[33mbb52368[m xz
+[33m1bd9ba3[m[33m ([m[1;31morigin/feature/backend-stable-v2[m[33m)[m feat: implement webhook security, validation, deduplication, retries and project cleanup
+[33mffd8231[m[33m ([m[1;31morigin/feature/backend[m[33m)[m nemalo, merged + working tg bot, still some issues with webhook and notifications not working
+[33mb252dde[m code
+[33mae4572b[m feat: добавлена база данных postgres в docker и модели sqlalchemy
+[33mcfd0ec4[m feat: реализован прием вебхуков ClickUp и фильтрация важных задач
+[33ma5b103f[m[33m ([m[1;31morigin/main[m[33m)[m smt
+[33mefce3c3[m feat: получение задач из ClickUp и фильтр важности
+[33m66cddf8[m smth
+[33m2519f0c[m bases
+[33m947327f[m s
